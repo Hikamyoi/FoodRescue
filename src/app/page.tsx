@@ -3,8 +3,6 @@
 import React, { useState, useEffect } from "react";
 import {
   Leaf,
-  Sparkles,
-  ArrowRight,
   Clock,
   ShieldCheck,
   ShoppingBag,
@@ -15,26 +13,31 @@ import {
   ChevronUp,
   Target,
   Globe,
-  CheckCircle2,
-  AlertCircle,
   Copy,
   Check,
-  MapPin,
   X,
-  Filter,
+  ArrowLeft,
+  Sparkles,
 } from "lucide-react";
-import { Product, PlatformStats, Category, Order } from "@/types";
+import { Product, PlatformStats, Category, Order, User } from "@/types";
 import { useAuth } from "@/context/AuthContext";
-import { Navbar } from "@/components/Navbar";
+
+// Components
+import { NavbarCustomer } from "@/components/NavbarCustomer";
+import { NavbarMerchant, MerchantTab } from "@/components/NavbarMerchant";
+import { MerchantLoginGate } from "@/components/MerchantLoginGate";
 import { Footer } from "@/components/Footer";
 import { ProductCard } from "@/components/ProductCard";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 import { CartDrawer } from "@/components/CartDrawer";
 import { OrderSuccessModal } from "@/components/OrderSuccessModal";
 import { AuthModal } from "@/components/AuthModal";
-import { MerchantPortalView } from "@/views/MerchantPortalView";
 
-// Data pesanan contoh untuk konsumen (sesuai tipe Order & OrderItem resmi)
+// Views
+import { MerchantPortalView } from "@/views/MerchantPortalView";
+import { AdminDashboardView } from "@/views/AdminDashboardView";
+
+// Data pesanan contoh untuk konsumen
 const DEMO_CONSUMER_ORDERS: Order[] = [
   {
     id: "ord-sample-1",
@@ -143,13 +146,13 @@ const DEMO_CONSUMER_ORDERS: Order[] = [
 ];
 
 export default function HomePage() {
-  const { user } = useAuth();
+  const { user, quickDemoLogin } = useAuth();
   const [currentView, setCurrentView] = useState("home");
+  const [merchantTab, setMerchantTab] = useState<MerchantTab>("orders");
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>(DEMO_CONSUMER_ORDERS);
-  const [loading, setLoading] = useState(true);
 
   // Filter Status Riwayat Pesanan
   const [orderFilter, setOrderFilter] = useState<
@@ -189,8 +192,8 @@ export default function HomePage() {
       if (token) {
         const orderRes = await fetch("/api/orders", {
           headers: { Authorization: `Bearer ${token}` },
-        });
-        if (orderRes.ok) {
+        }).catch(() => null);
+        if (orderRes && orderRes.ok) {
           const userOrders = await orderRes.json();
           if (Array.isArray(userOrders) && userOrders.length > 0) {
             setOrders(userOrders);
@@ -199,8 +202,6 @@ export default function HomePage() {
       }
     } catch (err) {
       console.error("Gagal load data:", err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -244,8 +245,28 @@ export default function HomePage() {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
+    if (v === "admin" || v === "admin-portal") {
+      setCurrentView("admin");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     setCurrentView(v);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleAuthSuccess = (loggedUser?: User) => {
+    if (!loggedUser) return;
+    if (loggedUser.role === "ADMIN") {
+      handleNavigate("admin");
+    } else if (loggedUser.role === "MERCHANT") {
+      setMerchantTab("orders");
+      handleNavigate("merchant");
+    } else if (
+      loggedUser.role === "CONSUMER" &&
+      (currentView === "merchant" || currentView === "admin")
+    ) {
+      handleNavigate("home");
+    }
   };
 
   const filteredProducts = products.filter((p) => {
@@ -289,14 +310,32 @@ export default function HomePage() {
     },
   ];
 
+  const isMerchantView =
+    currentView === "merchant" || currentView === "merchant-portal";
+  const isAdminView = currentView === "admin" || currentView === "admin-portal";
+
   return (
     <div className="min-h-screen flex flex-col bg-[#0b241b] text-white">
-      <Navbar
-        currentView={currentView}
-        onNavigate={handleNavigate}
-        onOpenAuth={() => setIsAuthOpen(true)}
-        onOpenCart={() => setIsCartOpen(true)}
-      />
+      {/* ========================================================= */}
+      {/* NAVBAR DINAMIS */}
+      {/* ========================================================= */}
+      {isMerchantView ? (
+        <NavbarMerchant
+          storeName={
+            user && user.role === "MERCHANT" ? user.name : "Portal Mitra Toko"
+          }
+          activeTab={merchantTab}
+          onTabChange={setMerchantTab}
+          onBackToCustomer={() => handleNavigate("home")}
+        />
+      ) : (
+        <NavbarCustomer
+          activeMenu={currentView}
+          onNavigate={handleNavigate}
+          onOpenCart={() => setIsCartOpen(true)}
+          onLoginClick={() => setIsAuthOpen(true)}
+        />
+      )}
 
       <main className="flex-1">
         {/* ========================================================= */}
@@ -417,7 +456,7 @@ export default function HomePage() {
               </div>
             </section>
 
-            {/* 4. CARA KERJA */}
+            {/* 4. Cara Kerja */}
             <section
               id="cara-kerja"
               className="bg-[#10382b] border-y border-emerald-800/80 py-16 px-4 sm:px-6 scroll-mt-20"
@@ -446,8 +485,7 @@ export default function HomePage() {
                     </h3>
                     <p className="text-xs text-gray-700 leading-relaxed font-medium">
                       Jelajahi surplus roti, hidangan hangat, atau minuman
-                      berdiskon 50-60%. Periksa informasi alergen dan batas
-                      waktu konsumsinya.
+                      berdiskon 50-60%.
                     </p>
                   </div>
 
@@ -459,9 +497,8 @@ export default function HomePage() {
                       Dapat Kode 6-Digit
                     </h3>
                     <p className="text-xs text-gray-700 leading-relaxed font-medium">
-                      Lakukan checkout secara aman. Anda akan otomatis
-                      mendapatkan Kode Verifikasi 6-Digit unik yang tersimpan di
-                      layar pesanan Anda.
+                      Lakukan checkout secara aman dan peroleh Kode Verifikasi
+                      6-Digit unik.
                     </p>
                   </div>
 
@@ -473,16 +510,15 @@ export default function HomePage() {
                       Ambil di Toko Fisik
                     </h3>
                     <p className="text-xs text-gray-700 leading-relaxed font-medium">
-                      Datangi toko fisik merchant sesuai jam pengambilan,
-                      tunjukkan kode 6-digit ke kasir, bayar di kasir, dan
-                      nikmati makanan lezat Anda!
+                      Datangi toko fisik merchant, tunjukkan kode 6-digit ke
+                      kasir, bayar di kasir, dan nikmati!
                     </p>
                   </div>
                 </div>
               </div>
             </section>
 
-            {/* 5. TENTANG VISI & MISI KAMI */}
+            {/* 5. Visi Misi */}
             <section
               id="visi-misi"
               className="max-w-7xl mx-auto px-4 sm:px-6 scroll-mt-24"
@@ -498,10 +534,8 @@ export default function HomePage() {
                   </h2>
                   <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed font-normal">
                     FoodRescue hadir untuk menjawab paradoks sampah makanan di
-                    Indonesia: jutaan ton makanan terbuang ke TPA sementara
-                    kebutuhan pangan berkualitas terus meningkat. Kami membangun
-                    ekosistem sirkular di mana hidangan surplus bernilai tinggi
-                    dapat diselamatkan konsumen dengan harga hemat.
+                    Indonesia: jutaan ton makanan terbuang sementara kebutuhan
+                    pangan berkualitas terus meningkat.
                   </p>
                 </div>
 
@@ -515,9 +549,7 @@ export default function HomePage() {
                     </h3>
                     <p className="text-xs text-emerald-100/80 leading-relaxed">
                       Mewujudkan Indonesia bebas dari sampah makanan surplus
-                      melalui platform sirkular digital yang efisien,
-                      transparan, dan inklusif bagi UMKM hingga gerai kuliner
-                      besar.
+                      melalui platform digital sirkular yang efisien.
                     </p>
                   </div>
 
@@ -536,45 +568,14 @@ export default function HomePage() {
                       <li>
                         • Menyediakan makanan segar berkualitas hemat 50% - 70%.
                       </li>
-                      <li>
-                        • Menekan gas metana dan jejak karbon emisi pembuangan
-                        makanan.
-                      </li>
+                      <li>• Menekan emisi gas metana pembuangan makanan.</li>
                     </ul>
-                  </div>
-                </div>
-
-                <div className="p-6 rounded-2xl bg-[#081d15]/90 border border-emerald-800/80 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center shadow-md">
-                  <div>
-                    <span className="text-2xl sm:text-3xl font-black text-emerald-400">
-                      23 - 48 Juta Ton
-                    </span>
-                    <p className="text-[11px] text-emerald-200/80 mt-1">
-                      Sampah makanan/tahun di Indonesia (Kajian Bappenas RI).
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-2xl sm:text-3xl font-black text-amber-300">
-                      Rp 330 Triliun
-                    </span>
-                    <p className="text-[11px] text-emerald-200/80 mt-1">
-                      Estimasi kerugian ekonomi tahunan akibat makanan terbuang.
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-2xl sm:text-3xl font-black text-emerald-400">
-                      7.29%
-                    </span>
-                    <p className="text-[11px] text-emerald-200/80 mt-1">
-                      Kontribusi limbah makanan terhadap emisi gas rumah kaca
-                      nasional.
-                    </p>
                   </div>
                 </div>
               </div>
             </section>
 
-            {/* 6. PERTANYAAN SERING DIAJUKAN (FAQ ACCORDION) */}
+            {/* 6. FAQ */}
             <section
               id="faq"
               className="max-w-4xl mx-auto px-4 sm:px-6 scroll-mt-24 space-y-6"
@@ -587,10 +588,6 @@ export default function HomePage() {
                 <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
                   Pertanyaan yang Sering Diajukan
                 </h2>
-                <p className="text-xs sm:text-sm text-emerald-100/80 max-w-xl mx-auto">
-                  Pelajari selengkapnya seputar kualitas makanan surplus, kode
-                  verifikasi pengambilan, dan kemitraan.
-                </p>
               </div>
 
               <div className="space-y-3 pt-2">
@@ -623,10 +620,10 @@ export default function HomePage() {
               </div>
             </section>
 
-            {/* 7. AJAKAN GABUNG MERCHANT F&B */}
+            {/* 7. CTA Merchant */}
             <section className="max-w-7xl mx-auto px-4 sm:px-6">
-              <div className="rounded-3xl bg-[#144131] border border-emerald-600/60 text-white p-8 sm:p-12 shadow-2xl">
-                <div className="max-w-2xl space-y-4">
+              <div className="rounded-3xl bg-[#144131] border border-emerald-600/60 text-white p-8 sm:p-12 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="max-w-2xl space-y-2">
                   <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider block">
                     Untuk Pemilik Restoran, Kafe, &amp; Bakery
                   </span>
@@ -636,24 +633,24 @@ export default function HomePage() {
                   </h2>
                   <p className="text-xs sm:text-sm text-emerald-200/90 leading-relaxed">
                     Bergabunglah bersama komunitas merchant ramah lingkungan
-                    FoodRescue. Kurangi biaya limbah, raih pelanggan baru di
-                    sekitar toko Anda, dan bantu jaga kelestarian bumi.
+                    FoodRescue.
                   </p>
-                  <div className="pt-2 flex flex-wrap gap-3">
-                    <button
-                      onClick={() => setIsAuthOpen(true)}
-                      className="px-6 py-3 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-[#0b241b] font-black text-xs shadow-md transition cursor-pointer"
-                    >
-                      Daftar Sebagai Mitra F&amp;B Sekarang
-                    </button>
-                    <button
-                      onClick={() => handleNavigate("merchant-portal")}
-                      className="px-6 py-3 rounded-xl bg-emerald-900/90 hover:bg-emerald-800 text-white font-bold text-xs border border-emerald-600/60 shadow-md transition cursor-pointer flex items-center gap-2"
-                    >
-                      <Store className="w-4 h-4 text-emerald-300" />
-                      <span>Buka Dashboard Merchant</span>
-                    </button>
-                  </div>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => handleNavigate("merchant-portal")}
+                    className="px-6 py-3 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-[#0b241b] font-black text-xs shadow-md transition cursor-pointer flex items-center gap-2"
+                  >
+                    <Store className="w-4 h-4" />
+                    <span>Buka Portal Merchant</span>
+                  </button>
+                  <button
+                    onClick={() => handleNavigate("admin")}
+                    className="px-4 py-3 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700 text-emerald-200 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span>Panel Admin</span>
+                  </button>
                 </div>
               </div>
             </section>
@@ -675,7 +672,6 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* Kotak Filter & Pencarian Lengkap */}
             <div className="bg-[#144131] p-4 rounded-2xl border border-emerald-800 shadow-md space-y-3">
               <div className="relative">
                 <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
@@ -696,7 +692,6 @@ export default function HomePage() {
                 )}
               </div>
 
-              {/* Tombol Kategori */}
               <div className="flex gap-2 overflow-x-auto text-xs pb-1">
                 <button
                   onClick={() => setSelectedCategory("ALL")}
@@ -724,7 +719,6 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Hasil Produk */}
             {filteredProducts.length === 0 ? (
               <div className="p-12 text-center bg-[#10382b] rounded-2xl border border-emerald-800/80 text-emerald-200 text-xs font-bold">
                 Tidak ada makanan surplus yang cocok dengan kata kunci &ldquo;
@@ -745,11 +739,10 @@ export default function HomePage() {
         )}
 
         {/* ========================================================= */}
-        {/* VIEW 3: RIWAYAT PESANAN SAYA (LENGKAP DENGAN E-TIKET KASIR) */}
+        {/* VIEW 3: RIWAYAT PESANAN SAYA */}
         {/* ========================================================= */}
         {currentView === "orders" && (
           <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 text-gray-900">
-            {/* Header Riwayat */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-emerald-800/60 pb-4">
               <div>
                 <h1 className="text-2xl font-black text-white">
@@ -761,7 +754,6 @@ export default function HomePage() {
                 </p>
               </div>
 
-              {/* Filter Status Pesanan */}
               <div className="flex items-center gap-1.5 bg-[#144131] p-1.5 rounded-xl border border-emerald-700/60 self-start sm:self-auto">
                 <button
                   onClick={() => setOrderFilter("ALL")}
@@ -804,17 +796,12 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* List Kartu Pesanan */}
             {filteredOrders.length === 0 ? (
               <div className="p-12 text-center bg-white rounded-3xl border border-gray-200 shadow-md space-y-3">
                 <ShoppingBag className="w-12 h-12 text-gray-300 mx-auto" />
                 <h3 className="font-black text-base text-gray-900">
                   Belum Ada Pesanan Dalam Kategori Ini
                 </h3>
-                <p className="text-xs text-gray-500 max-w-sm mx-auto leading-relaxed">
-                  Selamatkan makanan lezat berdiskon 50% - 60% hari ini sebelum
-                  toko mitra tutup!
-                </p>
                 <button
                   onClick={() => setCurrentView("catalog")}
                   className="px-5 py-2.5 rounded-xl bg-[#144131] hover:bg-[#1a5540] text-white text-xs font-black shadow-md cursor-pointer inline-flex items-center gap-1.5"
@@ -836,7 +823,6 @@ export default function HomePage() {
                       key={o.id}
                       className="bg-white rounded-3xl border border-gray-200 shadow-md p-6 space-y-4 text-gray-900 transition hover:shadow-lg"
                     >
-                      {/* Header Pesanan */}
                       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3">
                         <div className="flex items-center gap-2">
                           <span className="font-mono font-black text-sm text-[#144131]">
@@ -873,7 +859,7 @@ export default function HomePage() {
                         </span>
                       </div>
 
-                      {/* E-TIKET KODE 6-DIGIT PENGAMBILAN */}
+                      {/* E-Tiket 6 Digit */}
                       {isActive && (
                         <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-100/70 p-4 sm:p-5 rounded-2xl border-2 border-dashed border-emerald-400 flex flex-col sm:flex-row items-center justify-between gap-4">
                           <div className="text-center sm:text-left space-y-1">
@@ -905,7 +891,7 @@ export default function HomePage() {
                               Batas Pengambilan:{" "}
                               <strong>
                                 {o.pickupEstimatedAt ||
-                                  "Hari ini sesuai jam operasional toko"}
+                                  "Hari ini sesuai jam toko"}
                               </strong>
                             </p>
                           </div>
@@ -924,7 +910,7 @@ export default function HomePage() {
                         </div>
                       )}
 
-                      {/* Detail Toko Pengambilan */}
+                      {/* Detail Toko */}
                       <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                         <div className="flex items-center gap-2 text-gray-800">
                           <Store className="w-4 h-4 text-emerald-700 shrink-0" />
@@ -945,7 +931,7 @@ export default function HomePage() {
                         </span>
                       </div>
 
-                      {/* Rincian Item Makanan */}
+                      {/* Rincian Item */}
                       <div className="divide-y divide-gray-100 text-xs">
                         {o.items.map((it) => (
                           <div
@@ -965,10 +951,10 @@ export default function HomePage() {
                         ))}
                       </div>
 
-                      {/* Total & Footer Card */}
+                      {/* Total */}
                       <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
                         <div className="text-xs text-emerald-800 font-bold">
-                          🌱 Anda telah menyelamatkan{" "}
+                          🌱 Menyelamatkan{" "}
                           {o.items.reduce((s, it) => s + it.quantity, 0)} porsi
                           surplus makanan!
                         </div>
@@ -990,10 +976,70 @@ export default function HomePage() {
         )}
 
         {/* ========================================================= */}
-        {/* VIEW 4: PORTAL MERCHANT & DASHBOARD KASIR LENGKAP */}
+        {/* VIEW 4: PORTAL MERCHANT (PROTEKSI LOGIN TOKO) */}
         {/* ========================================================= */}
-        {(currentView === "merchant" || currentView === "merchant-portal") && (
-          <MerchantPortalView />
+        {isMerchantView && (
+          <div>
+            {user && user.role === "MERCHANT" ? (
+              <MerchantPortalView
+                activeTab={merchantTab}
+                onTabChange={setMerchantTab}
+              />
+            ) : (
+              <MerchantLoginGate
+                onBackToCustomer={() => handleNavigate("home")}
+                onOpenRegister={() => setIsAuthOpen(true)}
+              />
+            )}
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* VIEW 5: PUSAT KONTROL ADMINISTRATOR (PROTEKSI LOGIN ADMIN) */}
+        {/* ========================================================= */}
+        {isAdminView && (
+          <div className="bg-[#f8faf8] min-h-[85vh] text-gray-900">
+            {user && user.role === "ADMIN" ? (
+              <AdminDashboardView />
+            ) : (
+              <div className="min-h-[75vh] flex items-center justify-center px-4 py-12">
+                <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-gray-200 p-8 text-center space-y-5">
+                  <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto">
+                    <ShieldCheck className="w-8 h-8 text-emerald-700" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <h2 className="text-xl font-black text-gray-900">
+                      Akses Khusus Administrator
+                    </h2>
+                    <p className="text-xs text-gray-600 leading-relaxed">
+                      Silakan masuk dengan akun Admin untuk memverifikasi mitra
+                      toko, moderasi produk, dan mengaudit transaksi platform.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await quickDemoLogin("ADMIN");
+                    }}
+                    className="w-full py-3 px-4 rounded-2xl bg-[#144131] hover:bg-[#1a5540] text-white font-black text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 text-emerald-400" />
+                    <span>Otomatis Login Admin (Sarah Admin)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleNavigate("home")}
+                    className="w-full py-2.5 text-xs font-bold text-gray-500 hover:text-gray-800 flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Kembali ke Beranda</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </main>
 
@@ -1027,7 +1073,11 @@ export default function HomePage() {
         }}
       />
 
-      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onSuccess={handleAuthSuccess}
+      />
     </div>
   );
 }

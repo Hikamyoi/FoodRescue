@@ -1,0 +1,162 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ==========================================
+// 1. ENUMS
+// ==========================================
+
+enum Role {
+  CUSTOMER
+  MERCHANT
+  ADMIN
+}
+
+enum StoreVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum OrderStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED
+  READY_FOR_PICKUP
+  COMPLETED
+  CANCELLED
+}
+
+// ==========================================
+// 2. MODEL USER
+// ==========================================
+
+model User {
+  id           String      @id @default(uuid())
+  name         String
+  email        String      @unique
+  passwordHash String
+  phone        String?
+  role         Role        @default(CUSTOMER)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Relasi 1-to-1 ke Store (hanya terisi jika role = MERCHANT)
+  store        Store?
+
+  // Relasi 1-to-many ke Order sebagai pembeli/pelanggan
+  orders       Order[]
+}
+
+// ==========================================
+// 3. MODEL STORE (MERCHANT)
+// ==========================================
+
+model Store {
+  id                 String                  @id @default(uuid())
+  userId             String                  @unique // Relasi 1-to-1 dengan User
+  user               User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name               String                  // Nama Toko / Resto / Bakery
+  description        String?
+  address            String                  // Alamat fisik toko
+  city               String?                 // Kota / Wilayah
+  phone              String?                 // Nomor kontak operasional toko
+  openHours          String?                 // Contoh: "08:00 - 21:00 WIB"
+  pickupNotes        String?                 // Petunjuk kasir (contoh: "Ambil di kasir lantai 1")
+  
+  // Status verifikasi kemitraan mitra F&B
+  verificationStatus StoreVerificationStatus @default(PENDING)
+  rejectionReason    String?
+
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  // Relasi 1-to-many dengan SurplusProduct
+  surplusProducts    SurplusProduct[]
+
+  // Relasi 1-to-many dengan Order (pesanan masuk ke toko ini)
+  orders             Order[]
+}
+
+// ==========================================
+// 4. MODEL SURPLUS PRODUCT
+// ==========================================
+
+model SurplusProduct {
+  id              String      @id @default(uuid())
+  storeId         String
+  store           Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  title           String      // Nama makanan surplus
+  description     String      // Deskripsi kondisi makanan / kemasan
+  originalPrice   Int         // Harga normal (misal Rp 40.000)
+  discountPrice   Int         // Harga diskon surplus (misal Rp 20.000)
+  stock           Int         // Porsi surplus yang tersedia hari ini
+  
+  pickupTimeStart String      // Contoh: "18:00"
+  pickupTimeEnd   String      // Contoh: "21:30"
+  category        String      // Contoh: "Bakery", "Meals", "Beverages", "Dessert"
+  
+  imageUrl        String?     // URL foto makanan
+  bestBefore      String?     // Batas waktu konsumsi aman (misal: "24 jam")
+  allergens       String?     // Informasi alergen (misal: "Gluten, Telur, Susu")
+  isActive        Boolean     @default(true)
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Relasi ke detail item pesanan
+  orderItems      OrderItem[]
+}
+
+// ==========================================
+// 5. MODEL ORDER & ORDER ITEM (TRANSAKSI)
+// ==========================================
+
+model Order {
+  id            String       @id @default(uuid())
+  orderNumber   String       @unique // Contoh: "FR-8821"
+  
+  // Relasi ke Pelanggan (Customer)
+  customerId    String
+  customer      User         @relation(fields: [customerId], references: [id])
+  
+  // Relasi ke Toko Mitra (Store)
+  storeId       String
+  store         Store        @relation(fields: [storeId], references: [id])
+  
+  // Kode Pickup 6-digit untuk verifikasi di kasir fisik
+  pickupCode    String       // Contoh: "741298"
+  
+  status        OrderStatus  @default(PENDING_CONFIRMATION)
+  totalAmount   Int          // Total nominal yang harus dibayar
+  paymentMethod String       @default("BAYAR_DI_KASIR") // QRIS, GoPay, Tunai di Kasir
+  notes         String?      // Catatan pelanggan (misal: "Bawa kantong sendiri")
+  
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  // Rincian produk surplus yang dibeli dalam pesanan ini
+  orderItems    OrderItem[]
+}
+
+model OrderItem {
+  id               String         @id @default(uuid())
+  orderId          String
+  order            Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  surplusProductId String
+  surplusProduct   SurplusProduct @relation(fields: [surplusProductId], references: [id])
+  
+  quantity         Int            @default(1)
+  price            Int            // Harga diskon per item saat dipesan
+  subtotal         Int            // quantity * price
+}

@@ -7,3 +7,14 @@
     color: #111827;
   }
 }
+
+input,
+textarea,
+select {
+  color: #0f172a;
+}
+
+input[class*="text-white"],
+textarea[class*="text-white"] {
+  color: #ffffff !important;
+}

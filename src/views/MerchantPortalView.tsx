@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from "react";
 import {
   Store,
@@ -11,18 +13,22 @@ import {
   Edit2,
   Trash2,
   MapPin,
-  Calendar,
-  ShieldAlert,
   Sparkles,
   KeyRound,
   X,
-  Phone,
   UserCheck,
   Check,
   Star,
 } from "lucide-react";
-import { Product, Order, Merchant, Category } from "../types";
-import { useAuth } from "../context/AuthContext";
+import { Product, Order, Merchant, Category } from "@/types";
+import { useAuth } from "@/context/AuthContext";
+
+export type MerchantTab = "orders" | "products" | "profile";
+
+export interface MerchantPortalViewProps {
+  activeTab?: MerchantTab;
+  onTabChange?: (tab: MerchantTab) => void;
+}
 
 // Data Mockup / Demo Lengkap Toko & Kasir
 const INITIAL_DEMO_MERCHANT: Merchant = {
@@ -288,16 +294,36 @@ const INITIAL_DEMO_PRODUCTS: Product[] = [
   },
 ];
 
-export const MerchantPortalView: React.FC = () => {
-  const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<"orders" | "products" | "profile">(
-    "orders",
+export const MerchantPortalView: React.FC<MerchantPortalViewProps> = ({
+  activeTab: controlledTab,
+  onTabChange,
+}) => {
+  const { user, merchant: authMerchant } = useAuth();
+  const [internalTab, setInternalTab] = useState<MerchantTab>(
+    controlledTab || "orders",
   );
+  const activeTab = controlledTab ?? internalTab;
+
+  const setActiveTab = (nextTab: MerchantTab) => {
+    setInternalTab(nextTab);
+    if (onTabChange) {
+      onTabChange(nextTab);
+    }
+  };
+
+  useEffect(() => {
+    if (controlledTab) {
+      setInternalTab(controlledTab);
+    }
+  }, [controlledTab]);
+
   const [orderFilter, setOrderFilter] = useState<
     "ALL" | "PENDING" | "READY" | "COMPLETED"
   >("ALL");
 
-  const currentMerchant: Merchant = INITIAL_DEMO_MERCHANT;
+  const [currentMerchant, setCurrentMerchant] = useState<Merchant>(
+    authMerchant || INITIAL_DEMO_MERCHANT,
+  );
 
   const [orders, setOrders] = useState<Order[]>(INITIAL_DEMO_ORDERS);
   const [products, setProducts] = useState<Product[]>(INITIAL_DEMO_PRODUCTS);
@@ -336,8 +362,23 @@ export const MerchantPortalView: React.FC = () => {
     city: currentMerchant.city,
     phone: currentMerchant.phone,
     openHours: currentMerchant.openHours,
-    pickupNotes: currentMerchant.pickupNotes,
+    pickupNotes: currentMerchant.pickupNotes || "",
   });
+
+  useEffect(() => {
+    if (authMerchant) {
+      setCurrentMerchant(authMerchant);
+      setProfileData({
+        businessName: authMerchant.businessName,
+        description: authMerchant.description,
+        address: authMerchant.address,
+        city: authMerchant.city,
+        phone: authMerchant.phone,
+        openHours: authMerchant.openHours,
+        pickupNotes: authMerchant.pickupNotes || "",
+      });
+    }
+  }, [authMerchant]);
 
   const loadData = async () => {
     try {
@@ -469,7 +510,6 @@ export const MerchantPortalView: React.FC = () => {
                 ...p,
                 ...formData,
                 discountPercent: discount,
-                updatedAt: "Baru saja",
               }
             : p,
         ),
@@ -617,7 +657,6 @@ export const MerchantPortalView: React.FC = () => {
                 Buka: {currentMerchant.openHours}
               </span>
               <span className="flex items-center gap-1 text-amber-600 font-semibold">
-                // ✅ GANTI DENGAN INI:
                 <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
                 Rating 4.9 (88 Ulasan)
               </span>
@@ -626,6 +665,7 @@ export const MerchantPortalView: React.FC = () => {
         </div>
 
         <button
+          type="button"
           onClick={openAddModal}
           className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
         >
@@ -706,54 +746,57 @@ export const MerchantPortalView: React.FC = () => {
 
       {/* Notifikasi feedback aksi sukses */}
       {actionSuccess && (
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-sm font-semibold flex items-center gap-3 animate-fade-in shadow-sm">
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-sm font-semibold flex items-center gap-3 shadow-sm">
           <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
           <span>{actionSuccess}</span>
         </div>
       )}
 
       {/* Navigasi Tab */}
-      <div className="flex items-center gap-2 border-b border-gray-200">
+      <div className="flex items-center gap-2 border-b border-gray-200 overflow-x-auto">
         <button
+          type="button"
           onClick={() => setActiveTab("orders")}
-          className={`pb-3 px-4 font-bold text-sm flex items-center gap-2 border-b-2 transition cursor-pointer ${
+          className={`pb-3 px-4 font-bold text-sm flex items-center gap-2 border-b-2 transition cursor-pointer whitespace-nowrap ${
             activeTab === "orders"
               ? "border-emerald-600 text-emerald-700"
               : "border-transparent text-gray-500 hover:text-gray-900"
           }`}
         >
           <ShoppingBag className="w-4 h-4" />
-          Pesanan Konsumen & Kasir Pickup
+          <span>Pesanan Konsumen &amp; Kasir Pickup</span>
           <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">
             {orders.length}
           </span>
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab("products")}
-          className={`pb-3 px-4 font-bold text-sm flex items-center gap-2 border-b-2 transition cursor-pointer ${
+          className={`pb-3 px-4 font-bold text-sm flex items-center gap-2 border-b-2 transition cursor-pointer whitespace-nowrap ${
             activeTab === "products"
               ? "border-emerald-600 text-emerald-700"
               : "border-transparent text-gray-500 hover:text-gray-900"
           }`}
         >
           <Package className="w-4 h-4" />
-          Katalog Produk Surplus Toko
+          <span>Katalog Produk Surplus Toko</span>
           <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700">
             {products.length}
           </span>
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab("profile")}
-          className={`pb-3 px-4 font-bold text-sm flex items-center gap-2 border-b-2 transition cursor-pointer ${
+          className={`pb-3 px-4 font-bold text-sm flex items-center gap-2 border-b-2 transition cursor-pointer whitespace-nowrap ${
             activeTab === "profile"
               ? "border-emerald-600 text-emerald-700"
               : "border-transparent text-gray-500 hover:text-gray-900"
           }`}
         >
           <Store className="w-4 h-4" />
-          Profil Toko & Petunjuk Kasir
+          <span>Profil Toko &amp; Petunjuk Kasir</span>
         </button>
       </div>
 
@@ -766,6 +809,7 @@ export const MerchantPortalView: React.FC = () => {
                 Filter Status:
               </span>
               <button
+                type="button"
                 onClick={() => setOrderFilter("ALL")}
                 className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
                   orderFilter === "ALL"
@@ -776,6 +820,7 @@ export const MerchantPortalView: React.FC = () => {
                 Semua ({orders.length})
               </button>
               <button
+                type="button"
                 onClick={() => setOrderFilter("PENDING")}
                 className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
                   orderFilter === "PENDING"
@@ -794,6 +839,7 @@ export const MerchantPortalView: React.FC = () => {
                 )
               </button>
               <button
+                type="button"
                 onClick={() => setOrderFilter("READY")}
                 className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
                   orderFilter === "READY"
@@ -804,6 +850,7 @@ export const MerchantPortalView: React.FC = () => {
                 Siap Diambil Kasir ({readyOrdersCount})
               </button>
               <button
+                type="button"
                 onClick={() => setOrderFilter("COMPLETED")}
                 className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
                   orderFilter === "COMPLETED"
@@ -967,18 +1014,20 @@ export const MerchantPortalView: React.FC = () => {
                         <div className="mt-4 pt-3 border-t border-gray-200 flex flex-wrap items-center gap-2">
                           {isPending && (
                             <button
+                              type="button"
                               onClick={() =>
                                 handleUpdateStatus(ord.id, "CONFIRMED")
                               }
                               className="flex-1 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer"
                             >
-                              <Check className="w-4 h-4" /> Terima & Kemas
+                              <Check className="w-4 h-4" /> Terima &amp; Kemas
                               Pesanan
                             </button>
                           )}
 
                           {isConfirmed && (
                             <button
+                              type="button"
                               onClick={() =>
                                 handleUpdateStatus(ord.id, "READY_FOR_PICKUP")
                               }
@@ -991,6 +1040,7 @@ export const MerchantPortalView: React.FC = () => {
 
                           {isReady && (
                             <button
+                              type="button"
                               onClick={() => {
                                 setVerifyingOrder(ord);
                                 setEnteredPickupCode("");
@@ -999,14 +1049,14 @@ export const MerchantPortalView: React.FC = () => {
                               className="flex-1 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
                             >
                               <KeyRound className="w-4 h-4" /> Verifikasi Kode 6
-                              Digit & Serahkan
+                              Digit &amp; Serahkan
                             </button>
                           )}
 
                           {isCompleted && (
                             <div className="w-full flex items-center justify-center gap-1 text-xs text-emerald-700 font-bold bg-emerald-100/60 py-2 rounded-xl">
                               <CheckCircle2 className="w-4 h-4 text-emerald-600" />{" "}
-                              Selesai & Terverifikasi
+                              Selesai &amp; Terverifikasi
                             </div>
                           )}
                         </div>
@@ -1034,6 +1084,7 @@ export const MerchantPortalView: React.FC = () => {
               </p>
             </div>
             <button
+              type="button"
               onClick={openAddModal}
               className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5 cursor-pointer"
             >
@@ -1060,7 +1111,7 @@ export const MerchantPortalView: React.FC = () => {
                         {prod.name}
                       </h4>
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
                           prod.isActive && prod.stock > 0
                             ? "bg-emerald-100 text-emerald-800"
                             : "bg-red-100 text-red-800"
@@ -1095,6 +1146,7 @@ export const MerchantPortalView: React.FC = () => {
                       </span>
                       <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
                         <button
+                          type="button"
                           onClick={() => handleAdjustStock(prod.id, -1)}
                           className="px-2 py-0.5 bg-gray-50 hover:bg-gray-200 text-xs font-bold cursor-pointer"
                         >
@@ -1104,6 +1156,7 @@ export const MerchantPortalView: React.FC = () => {
                           {prod.stock}
                         </span>
                         <button
+                          type="button"
                           onClick={() => handleAdjustStock(prod.id, 1)}
                           className="px-2 py-0.5 bg-gray-50 hover:bg-gray-200 text-xs font-bold cursor-pointer"
                         >
@@ -1114,6 +1167,7 @@ export const MerchantPortalView: React.FC = () => {
 
                     <div className="flex items-center gap-1">
                       <button
+                        type="button"
                         onClick={() => openEditModal(prod)}
                         className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 transition cursor-pointer"
                         title="Edit Produk"
@@ -1121,8 +1175,9 @@ export const MerchantPortalView: React.FC = () => {
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleToggleProductStatus(prod.id)}
-                        className={`p-1.5 rounded-lg transition cursor-pointer ${
+                        className={`p-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
                           prod.isActive
                             ? "text-amber-600 hover:bg-amber-50"
                             : "text-emerald-600 hover:bg-emerald-50"
@@ -1136,6 +1191,7 @@ export const MerchantPortalView: React.FC = () => {
                         {prod.isActive ? "Nonaktif" : "Aktifkan"}
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleDeleteProduct(prod.id)}
                         className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
                         title="Hapus Produk"
@@ -1156,7 +1212,7 @@ export const MerchantPortalView: React.FC = () => {
         <div className="bg-white rounded-3xl border border-gray-200 p-6 space-y-6">
           <div>
             <h3 className="text-lg font-bold text-gray-900">
-              Pengaturan Informasi Toko & Petunjuk Kasir
+              Pengaturan Informasi Toko &amp; Petunjuk Kasir
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">
               Informasi ini akan dilihat langsung oleh konsumen pada halaman
@@ -1167,6 +1223,16 @@ export const MerchantPortalView: React.FC = () => {
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              setCurrentMerchant((prev) => ({
+                ...prev,
+                businessName: profileData.businessName,
+                description: profileData.description,
+                address: profileData.address,
+                city: profileData.city,
+                phone: profileData.phone,
+                openHours: profileData.openHours,
+                pickupNotes: profileData.pickupNotes,
+              }));
               setActionSuccess("Perubahan profil toko berhasil disimpan!");
               setTimeout(() => setActionSuccess(null), 3000);
             }}
@@ -1257,7 +1323,7 @@ export const MerchantPortalView: React.FC = () => {
 
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">
-                Petunjuk Titik Pengambilan bagi Konsumen & Kasir
+                Petunjuk Titik Pengambilan bagi Konsumen &amp; Kasir
               </label>
               <textarea
                 rows={2}
@@ -1288,7 +1354,7 @@ export const MerchantPortalView: React.FC = () => {
       {/* MODAL VERIFIKASI KASIR: INPUT 6 DIGIT CODE */}
       {verifyingOrder && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-scale-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
@@ -1299,6 +1365,7 @@ export const MerchantPortalView: React.FC = () => {
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setVerifyingOrder(null)}
                 className="p-1 rounded-lg text-gray-400 hover:text-gray-700 cursor-pointer"
               >
@@ -1368,7 +1435,7 @@ export const MerchantPortalView: React.FC = () => {
                 disabled={enteredPickupCode.length < 4}
                 className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <Check className="w-4 h-4" /> Validasi & Serahkan
+                <Check className="w-4 h-4" /> Validasi &amp; Serahkan
               </button>
             </div>
           </div>
@@ -1378,7 +1445,7 @@ export const MerchantPortalView: React.FC = () => {
       {/* MODAL TAMBAH / EDIT PRODUK SURPLUS */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 my-8 animate-scale-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 my-8">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
@@ -1391,6 +1458,7 @@ export const MerchantPortalView: React.FC = () => {
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setIsAddModalOpen(false)}
                 className="p-1 rounded-lg text-gray-400 hover:text-gray-700 cursor-pointer"
               >
@@ -1489,10 +1557,10 @@ export const MerchantPortalView: React.FC = () => {
                     }
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 text-gray-950 font-semibold bg-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                   >
-                    <option value="cat-bakery">Roti & Pastry</option>
-                    <option value="cat-meals">Makanan Berat & Bento</option>
-                    <option value="cat-drinks">Kopi & Minuman</option>
-                    <option value="cat-dessert">Dessert & Kue</option>
+                    <option value="cat-bakery">Roti &amp; Pastry</option>
+                    <option value="cat-meals">Makanan Berat &amp; Bento</option>
+                    <option value="cat-drinks">Kopi &amp; Minuman</option>
+                    <option value="cat-dessert">Dessert &amp; Kue</option>
                   </select>
                 </div>
               </div>
